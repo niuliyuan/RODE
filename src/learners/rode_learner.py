@@ -214,6 +214,7 @@ class RODELearner:
             pred_grad_norm = th.nn.utils.clip_grad_norm_(self.action_encoder_params, self.args.grad_norm_clip)
             self.action_encoder_optimiser.step()
 
+            # if t_env < self.args.role_action_spaces_update_start:
             if t_env > self.args.role_action_spaces_update_start:
                 self.mac.update_role_action_spaces()
                 if 'noar' in self.args.mac:
@@ -239,7 +240,8 @@ class RODELearner:
             self.logger.log_stat("q_taken_mean",
                                  (chosen_action_qvals * mask).sum().item() / (mask_elems * self.args.n_agents), t_env)
             self.logger.log_stat("role_q_taken_mean",
-                                 (chosen_role_qvals * role_mask).sum().item() / (role_mask.sum().item() * self.args.n_agents), t_env)
+                                 (chosen_role_qvals * role_mask).sum().item() / (
+                                             role_mask.sum().item() * self.args.n_agents), t_env)
             self.logger.log_stat("target_mean", (targets * mask).sum().item() / (mask_elems * self.args.n_agents),
                                  t_env)
             self.log_stats_t = t_env

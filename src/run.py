@@ -95,10 +95,12 @@ def evaluate_sequential(args, runner):
 
 def run_sequential(args, logger):
     # Init runner so we can get env info
+    # print("args####",args,"logger####",logger)
     runner = r_REGISTRY[args.runner](args=args, logger=logger)
 
     # Set up schemes and groups here
     env_info = runner.get_env_info()
+    # env_info### {'state_shape': 48, 'obs_shape': 30, 'n_actions': 9, 'n_agents': 3, 'episode_limit': 200}
     args.n_agents = env_info["n_agents"]
     args.n_actions = env_info["n_actions"]
     args.state_shape = env_info["state_shape"]
@@ -183,11 +185,12 @@ def run_sequential(args, logger):
     logger.console_logger.info("Beginning training for {} timesteps".format(args.t_max))
 
     while runner.t_env <= args.t_max:
-
         # Run for a whole episode at a time
         episode_batch = runner.run(test_mode=False)
+        # print("##episode_batch",type(episode_batch))
         buffer.insert_episode_batch(episode_batch)
 
+        # episodes_in_buffer enough for train
         if buffer.can_sample(args.batch_size):
             episode_sample = buffer.sample(args.batch_size)
 

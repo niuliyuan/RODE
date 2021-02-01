@@ -27,6 +27,7 @@ class RODEMAC:
         self.action_selector = action_REGISTRY[args.action_selector](args)
         self.role_selector = role_selector_REGISTRY[args.role_selector](input_shape, args)
         self.action_encoder = action_encoder_REGISTRY[args.action_encoder](args)
+        # print("args###", self.action_encoder)
 
         self.hidden_states = None
         self.role_hidden_states = None
@@ -39,6 +40,7 @@ class RODEMAC:
 
     def select_actions(self, ep_batch, t_ep, t_env, bs=slice(None), test_mode=False):
         # Only select actions for the selected batch elements in bs
+        #
         avail_actions = ep_batch["avail_actions"][:, t_ep]
         agent_outputs, role_outputs = self.forward(ep_batch, t_ep, test_mode=test_mode, t_env=t_env)
         # the function forward returns q values of each agent, the roles are indicated by self.selected_roles
@@ -46,7 +48,8 @@ class RODEMAC:
         # filter out actions infeasible for selected roles; self.selected_roles [bs*n_agents]
         # self.role_action_spaces [n_roles, n_actions]
         role_avail_actions = th.gather(self.role_action_spaces.unsqueeze(0).repeat(self.n_agents, 1, 1), dim=1,
-                                       index=self.selected_roles.unsqueeze(-1).unsqueeze(-1).repeat(1, 1, self.n_actions).long()).squeeze()
+                                       index=self.selected_roles.unsqueeze(-1).unsqueeze(-1).repeat(1, 1,
+                                                                                                    self.n_actions).long()).squeeze()
         role_avail_actions = role_avail_actions.int().view(ep_batch.batch_size, self.n_agents, -1)
 
         chosen_actions = self.action_selector.select_action(agent_outputs[bs], avail_actions[bs],
@@ -61,7 +64,8 @@ class RODEMAC:
         role_outputs = None
         if t % self.role_interval == 0:
             role_outputs = self.role_selector(self.role_hidden_states, self.role_latent)
-            self.selected_roles = self.role_selector.select_role(role_outputs, test_mode=test_mode, t_env=t_env).squeeze()
+            self.selected_roles = self.role_selector.select_role(role_outputs, test_mode=test_mode,
+                                                                 t_env=t_env).squeeze()
             # [bs * n_agents]
 
         # compute individual q-values
@@ -75,11 +79,12 @@ class RODEMAC:
         # [bs * n_agents, 1, n_actions]
 
         return agent_outs.view(ep_batch.batch_size, self.n_agents, -1), \
-            (None if role_outputs is None else role_outputs.view(ep_batch.batch_size, self.n_agents, -1))
+               (None if role_outputs is None else role_outputs.view(ep_batch.batch_size, self.n_agents, -1))
 
     def init_hidden(self, batch_size):
         self.hidden_states = self.agent.init_hidden().unsqueeze(0).expand(batch_size, self.n_agents, -1)  # bav
-        self.role_hidden_states = self.role_agent.init_hidden().unsqueeze(0).expand(batch_size, self.n_agents, -1)  # bav
+        self.role_hidden_states = self.role_agent.init_hidden().unsqueeze(0).expand(batch_size, self.n_agents,
+                                                                                    -1)  # bav
 
     def parameters(self):
         params = list(self.agent.parameters())
@@ -131,21 +136,22 @@ class RODEMAC:
                                           map_location=lambda storage, loc: storage).to(self.args.device)
         self.n_roles = self.role_action_spaces.shape[0]
         self.agent.load_state_dict(th.load("{}/agent.th".format(path), map_location=lambda storage, loc: storage))
-        self.role_agent.load_state_dict(th.load("{}/role_agent.th".format(path), map_location=lambda storage, loc: storage))
+        self.role_agent.load_state_dict(
+            th.load("{}/role_agent.th".format(path), map_location=lambda storage, loc: storage))
         for role_i in range(self.n_roles):
             try:
                 self.roles[role_i].load_state_dict(th.load("{}/role_{}.th".format(path, role_i),
-                                                   map_location=lambda storage, loc: storage))
+                                                           map_location=lambda storage, loc: storage))
             except:
                 self.roles.append(role_REGISTRY[self.args.role](self.args))
             self.roles[role_i].update_action_space(self.role_action_spaces[role_i].detach().cpu().numpy())
             if self.args.use_cuda:
                 self.roles[role_i].cuda()
         self.role_selector.load_state_dict(th.load("{}/role_selector.th".format(path),
-                                           map_location=lambda storage, loc: storage))
+                                                   map_location=lambda storage, loc: storage))
 
         self.action_encoder.load_state_dict(th.load("{}/action_encoder.th".format(path),
-                                                    map_location=lambda storage, loc:storage))
+                                                    map_location=lambda storage, loc: storage))
         self.role_latent = th.load("{}/role_latent.pt".format(path),
                                    map_location=lambda storage, loc: storage).to(self.args.device)
         self.action_repr = th.load("{}/action_repr.pt".format(path),
@@ -168,11 +174,11 @@ class RODEMAC:
             if t == 0:
                 inputs.append(th.zeros_like(batch["actions_onehot"][:, t]))
             else:
-                inputs.append(batch["actions_onehot"][:, t-1])
+                inputs.append(batch["actions_onehot"][:, t - 1])
         if self.args.obs_agent_id:
             inputs.append(th.eye(self.n_agents, device=batch.device).unsqueeze(0).expand(bs, -1, -1))
 
-        inputs = th.cat([x.reshape(bs*self.n_agents, -1) for x in inputs], dim=1)
+        inputs = th.cat([x.reshape(bs * self.n_agents, -1) for x in inputs], dim=1)
         return inputs
 
     def _get_input_shape(self, scheme):
@@ -186,22 +192,29 @@ class RODEMAC:
 
     def update_role_action_spaces(self):
         action_repr = self.action_encoder()
-        action_repr_array = action_repr.detach().cpu().numpy()  # [n_actions, action_latent_d]
 
+        action_repr_array = action_repr.detach().cpu().numpy()  # [n_actions, action_latent_d]
         k_means = KMeans(n_clusters=self.n_clusters, random_state=0).fit(action_repr_array)
 
         spaces = []
         for cluster_i in range(self.n_clusters):
             spaces.append((k_means.labels_ == cluster_i).astype(np.float))
 
+        # print("spaces###", spaces) #  [array([0., 0., 1., 0., 0., 1., 0., 0., 0.]), array([0., 0., 0., 0., 0., 0.,
+        # 0., 0., 1.]), array([1., 1., 0., 0., 1., 0., 0., 1., 0.]), array([0., 0., 0., 1., 0., 0., 0., 0., 0.]),
+        # array([0., 0., 0., 0., 0., 0., 1., 0., 0.])]
+        # print("spaces###", k_means.labels_) # [2 2 0 3 2 0 4 2 1]
+
         o_spaces = copy.deepcopy(spaces)
+        # print("_space ##", o_spaces)
+
         spaces = []
 
-        for space_i ,space in enumerate(o_spaces):
+        for space_i, space in enumerate(o_spaces):
             _space = copy.deepcopy(space)
             _space[0] = 0.
             _space[1] = 0.
-
+            # print("_space ##",_space)
             if _space.sum() == 2.:
                 spaces.append(o_spaces[space_i])
             if _space.sum() >= 3:

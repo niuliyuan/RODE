@@ -63,7 +63,7 @@ class ObsRewardEncoder(nn.Module):
 
         other_actions = []
         for i in range(self.n_agents):
-            _other_actions  = []
+            _other_actions = []
             for j in range(self.n_agents):
                 if i != j:
                     _other_actions.append(actions[:, j])

@@ -4,7 +4,7 @@ env_args:
   continuing_episode: False
   difficulty: "7"
   game_version: null
-  map_name: "3m"
+  map_name: "25m"
   move_amount: 2
   obs_all_health: True
   obs_instead_of_state: False
@@ -18,7 +18,7 @@ env_args:
   reward_negative_scale: 0.5
   reward_only_positive: True
   reward_scale: True
-  reward_scale_rate: 20
+  reward_scale_rate:  20
   reward_sparse: False
   reward_win: 200
   replay_dir: ""

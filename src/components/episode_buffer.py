@@ -32,6 +32,7 @@ class EpisodeBatch:
             for k in preprocess:
                 assert k in scheme
                 new_k = preprocess[k][0]
+                # print("new_k###",new_k)
                 transforms = preprocess[k][1]
 
                 vshape = self.scheme[k]["vshape"]
